@@ -1,0 +1,215 @@
+-- Anti-AFK Script
+local VirtualUser = game:GetService("VirtualUser")
+game:GetService("Players").LocalPlayer.Idled:Connect(function()
+    VirtualUser:CaptureController()
+    VirtualUser:ClickButton2(Vector2.new(0, 0))
+end)
+
+print("Anti-AFK script telah diaktifkan!")
+
+-- Lanjutan script Anda di bawah ini
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+
+local PAD1 = script.Parent.Frame.PAD1
+local Button1 = PAD1.Button
+local Circle1 = PAD1.Circle
+
+local PAD2 = script.Parent.Frame.PAD2
+local Button2 = PAD2.Button
+local Circle2 = PAD2.Circle
+
+local PAD3 = script.Parent.Frame.PAD3
+local Button3 = PAD3.Button
+local Circle3 = PAD3.Circle
+
+local AURA = script.Parent.Frame.AURA
+local Button4 = AURA.Button
+local Circle4 = AURA.Circle
+
+local MinimizeButton = script.Parent.MinimizeButton
+local Frame = script.Parent.Frame
+
+local isPAD1On = false
+local isPAD2On = false
+local isPAD3On = false
+local isAURAOn = false
+local isMinimized = false
+local isTeleporting = false
+local auraCoroutine
+local pad1Connection, pad2Connection, pad3Connection
+
+_G.Kill_Aura = false
+
+-- Fungsi untuk mengatur noclip
+local function setNoclip(character, noclip)
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = not noclip
+        end
+    end
+end
+
+-- Fungsi untuk mengecek apakah player spawn dalam radius 200 studs dari target CFrame
+local function isPlayerNearTarget(character, targetCFrame, radius)
+    local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+    local distance = (humanoidRootPart.Position - targetCFrame.Position).Magnitude
+    return distance <= (radius or 200)
+end
+
+-- Fungsi untuk menghentikan tween jika player sudah di tempat target
+local function hasReachedTarget(character, targetCFrame, tolerance)
+    local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+    local distance = (humanoidRootPart.Position - targetCFrame.Position).Magnitude
+    return distance <= (tolerance or 5)
+end
+
+-- Fungsi teleportasi dengan tween
+local function teleport(targetCFrame)
+    local player = Players.LocalPlayer
+    local character = player.Character or player.CharacterAdded:Wait()
+    local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+    if targetCFrame then
+        local targetPosition = targetCFrame.Position
+        local distance = (humanoidRootPart.Position - targetPosition).magnitude
+
+        if not hasReachedTarget(character, targetCFrame, 5) then
+            setNoclip(character, true)
+
+            local tweenSpeed = (distance < 250) and 600 or (distance > 1000) and 200 or distance / 5
+            local tweenDuration = distance / tweenSpeed
+
+            local tweenInfo = TweenInfo.new(tweenDuration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+            local tween = TweenService:Create(humanoidRootPart, tweenInfo, { CFrame = targetCFrame })
+
+            tween:Play()
+            tween.Completed:Wait()
+
+            humanoidRootPart.CFrame = targetCFrame
+            setNoclip(character, false)
+        else
+            warn("Player sudah berada di target CFrame")
+        end
+    else
+        warn("Target CFrame tidak ditemukan")
+    end
+end
+
+-- Fungsi teleportasi terus-menerus setelah tween selesai
+local function continuousTeleport(targetCFrame, isPADOn, connection)
+    local player = Players.LocalPlayer
+    local character = player.Character or player.CharacterAdded:Wait()
+
+    if connection then
+        connection:Disconnect()
+    end
+
+    if isPADOn then
+        teleport(targetCFrame)
+
+        connection = RunService.Heartbeat:Connect(function()
+            if isPlayerNearTarget(character, targetCFrame, 200) then
+                if not hasReachedTarget(character, targetCFrame, 5) then
+                    wait(2) -- Tambahkan jeda 1 detik sebelum teleportasi ulang
+                    teleport(targetCFrame)
+                end
+            end
+        end)
+    else
+        if connection then
+            connection:Disconnect()
+        end
+        setNoclip(character, false)
+    end
+
+    return connection
+end
+
+-- Fungsi toggle generik untuk PAD
+local function togglePAD(PAD, Circle, isPADOn, targetCFrame, connection)
+    isPADOn = not isPADOn
+    if isPADOn then
+        Circle.Position = UDim2.new(0.629, 0, 0, 0)
+        PAD.ImageColor3 = Color3.fromRGB(53, 255, 110)
+        connection = continuousTeleport(targetCFrame, isPADOn, connection)
+    else
+        Circle.Position = UDim2.new(0, 0, 0, 0)
+        PAD.ImageColor3 = Color3.fromRGB(200, 200, 200)
+        connection = continuousTeleport(nil, isPADOn, connection)
+    end
+    return isPADOn, connection
+end
+
+-- Fungsi untuk toggle AURA
+local function toggleAURA()
+    isAURAOn = not isAURAOn
+    _G.Kill_Aura = isAURAOn
+
+    if isAURAOn then
+        Circle4.Position = UDim2.new(0.629, 0, 0, 0)
+        AURA.ImageColor3 = Color3.fromRGB(53, 255, 110)
+
+        auraCoroutine = coroutine.wrap(function()
+            while _G.Kill_Aura do
+                wait(0.5)
+                local playerPosition = Players.LocalPlayer.Character.HumanoidRootPart.Position
+                for _, enemy in pairs(game.Workspace.Enemies:GetChildren()) do
+                    local humanoid = enemy:FindFirstChild("Humanoid")
+                    local humanoidRootPart = enemy:FindFirstChild("HumanoidRootPart")
+
+                    if humanoid and humanoidRootPart and humanoid.Health > 0 then
+                        if (humanoidRootPart.Position - playerPosition).Magnitude <= 200 then
+                            pcall(function()
+                                humanoid:TakeDamage(humanoid.MaxHealth)
+                                humanoidRootPart.CanCollide = false
+                            end)
+                        end
+                    end
+                end
+            end
+        end)
+        auraCoroutine()
+    else
+        Circle4.Position = UDim2.new(0, 0, 0, 0)
+        AURA.ImageColor3 = Color3.fromRGB(200, 200, 200)
+    end
+end
+
+-- Fungsi untuk toggle minimize frame
+local function toggleMinimize()
+    isMinimized = not isMinimized
+    Frame.Visible = not isMinimized
+end
+
+-- Set tampilan awal
+local function setInitialState()
+    Circle1.Position = UDim2.new(0, 0, 0, 0)
+    PAD1.ImageColor3 = Color3.fromRGB(200, 200, 200)
+    Circle2.Position = UDim2.new(0, 0, 0, 0)
+    PAD2.ImageColor3 = Color3.fromRGB(200, 200, 200)
+    Circle3.Position = UDim2.new(0, 0, 0, 0)
+    PAD3.ImageColor3 = Color3.fromRGB(200, 200, 200)
+    Circle4.Position = UDim2.new(0, 0, 0, 0)
+    AURA.ImageColor3 = Color3.fromRGB(200, 200, 200)
+end
+
+-- Set tampilan awal
+setInitialState()
+
+-- Event listener untuk setiap tombol PAD
+Button1.MouseButton1Click:Connect(function()
+    isPAD1On, pad1Connection = togglePAD(PAD1, Circle1, isPAD1On, CFrame.new(-5018.04932, 318.081726, -2912.26807), pad1Connection)
+end)
+
+Button2.MouseButton1Click:Connect(function()
+    isPAD2On, pad2Connection = togglePAD(PAD2, Circle2, isPAD2On, CFrame.new(-5003.35547, 318.081726, -2875.87671), pad2Connection)
+end)
+
+Button3.MouseButton1Click:Connect(function()
+    isPAD3On, pad3Connection = togglePAD(PAD3, Circle3, isPAD3On, CFrame.new(-4988.50342, 318.081726, -2839.09277), pad3Connection)
+end)
+
+Button4.MouseButton1Click:Connect(toggleAURA)
+MinimizeButton.MouseButton1Click:Connect(toggleMinimize)
