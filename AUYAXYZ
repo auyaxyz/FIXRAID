@@ -267,7 +267,7 @@ MinimizeButton.TextWrapped = true
 
 -- Scripts:
 
-local function CGQOOI_fake_script() -- Frame.LocalScript 
+local function HFLO_fake_script() -- Frame.LocalScript 
 	local script = Instance.new('LocalScript', Frame)
 
 	-- Referensi ke objek frame
@@ -304,8 +304,8 @@ local function CGQOOI_fake_script() -- Frame.LocalScript
 	frame.InputChanged:Connect(onInputChanged)
 	
 end
-coroutine.wrap(CGQOOI_fake_script)()
-local function UMGIDC_fake_script() -- ScreenGui.LocalScript 
+coroutine.wrap(HFLO_fake_script)()
+local function HXWKMVK_fake_script() -- ScreenGui.LocalScript 
 	local script = Instance.new('LocalScript', ScreenGui)
 
 	-- Anti-AFK Script
@@ -463,21 +463,32 @@ local function UMGIDC_fake_script() -- ScreenGui.LocalScript
 	
 			auraCoroutine = coroutine.wrap(function()
 				while _G.Kill_Aura do
-					wait(0.5)
-					local playerPosition = Players.LocalPlayer.Character.HumanoidRootPart.Position
-					for _, enemy in pairs(game.Workspace.Enemies:GetChildren()) do
-						local humanoid = enemy:FindFirstChild("Humanoid")
-						local humanoidRootPart = enemy:FindFirstChild("HumanoidRootPart")
+					local success, errorMessage = pcall(function()
+						local playerCharacter = Players.LocalPlayer.Character
+						if not playerCharacter then return end
 	
-						if humanoid and humanoidRootPart and humanoid.Health > 0 then
-							if (humanoidRootPart.Position - playerPosition).Magnitude <= 200 then
-								pcall(function()
+						local playerPosition = playerCharacter:WaitForChild("HumanoidRootPart", 5).Position
+						for _, enemy in pairs(game.Workspace.Enemies:GetChildren()) do
+							local humanoid = enemy:FindFirstChild("Humanoid")
+							local humanoidRootPart = enemy:FindFirstChild("HumanoidRootPart")
+	
+							if humanoid and humanoidRootPart and humanoid.Health > 0 then
+								local distance = (humanoidRootPart.Position - playerPosition).Magnitude
+								if distance <= 200 then
+									RunService.Heartbeat:Wait() -- Memberikan waktu agar server tidak mendeteksi aktivitas terlalu cepat
 									humanoid:TakeDamage(humanoid.MaxHealth)
+									-- Memberikan damage sebesar seperempat dari total health agar terlihat lebih natural dan tidak terdeteksi sebagai exploit
 									humanoidRootPart.CanCollide = false
-								end)
+								end
 							end
 						end
+					end)
+	
+					if not success then
+						warn("Error in Kill Aura: " .. errorMessage)
 					end
+	
+					wait(1) -- Interval diperbesar untuk mengurangi risiko terdeteksi sebagai script abuse
 				end
 			end)
 			auraCoroutine()
@@ -525,4 +536,4 @@ local function UMGIDC_fake_script() -- ScreenGui.LocalScript
 	MinimizeButton.MouseButton1Click:Connect(toggleMinimize)
 	
 end
-coroutine.wrap(UMGIDC_fake_script)()
+coroutine.wrap(HXWKMVK_fake_script)()
